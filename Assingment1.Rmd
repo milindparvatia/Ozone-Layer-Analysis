@@ -1,0 +1,226 @@
+---
+title: "MATH1318 Time-Series Analysis Assignment 1"
+output:
+  word_document: default
+  html_notebook: default
+---
+### Milind Shaileshkumar Parvatia
+### s3806853
+
+# Time Series Analysis of thickness of Ozone
+
+
+```{r}
+rm(list = ls())
+library(readr)
+library(xts)
+library(TSA)
+```
+
+
+```{r}
+
+dataset <- read.csv("data1.csv", header = FALSE)
+
+rownames(dataset) <- seq(from=1927, to=2016)
+
+timeseries <- ts(dataset$V1, start = 1927, end = 2016, frequency = 1)
+
+plot(timeseries,ylab='Thickness level in dobson units', xlab='Year',type='o', main = "Time Series plot of thickness of Ozone layer 1927 to 2016")
+
+pacf(dataset, main = "PACF plot of thickness of Ozone layer")
+acf(dataset, main = "ACF plot of thickness of Ozone layer")
+
+
+```
+From the fig 1 we can discuss following descriptive points from seires.
+
+
+```{r}
+plot(y=timeseries, x=zlag(timeseries), ylab='Thickness level in dobson units',xlab='Previous Year Thickness level', main = "Scatter Plot of thickness of Ozone layer in consequtive years")
+
+y = timeseries              # Read the color data into y
+x = zlag(timeseries)        # Generate  of the color series
+index = 2:length(x)    # Create an index to get rid of the first NA value in x
+cor(y[index],x[index]) # Calculate correlation between numerical values in x and y```
+
+```
+```{r}
+# Created function to implement model plotting everytime
+modelPlotting <- function(timeseries, model, modelname){
+  
+  #Timeseries plot of fitted model
+  plot(timeseries,
+     ylim = c(min(c(fitted(model), as.vector(timeseries))),
+              max(c(fitted(model), as.vector(timeseries)))), 
+     ylab='Dobson units',
+     xlab='Years',
+     type='o',
+     main = "Thickness of Ozone layer 1927 to 2016")
+  lines(ts(fitted(model), start = 1927))
+  
+  par(mfrow=c(3,2))
+  
+  #Histogram plot of Standardized Residuals
+  hist(rstudent(model),xlab='Standardized Residuals', main = c(paste0("Histogram of the standardized residuals from ", toString(modelname))))
+  
+  #Timeseries plot of residuals of model
+  plot(y=rstudent(model),x=as.vector(time(timeseries)),xlab='Time', ylab='Standardized Residuals',type='o', main = c(paste0(toString(modelname), "'s plot of residuals with labels")))
+  
+  # Normal qq-plot of residuals of model
+  y = rstudent(model)
+  qqnorm(y, main = c(paste0("Normal Q-Q plot of the standardized residuals from ", toString(modelname))))
+  qqline(y, col = 2, lwd = 1, lty = 2)
+
+  # ACF plot
+  acf(y, main = c(paste0("ACF plot of thickness of Ozone layer of ", toString(modelname))))
+  
+  # PACF plot
+  pacf(y, main = c(paste0("PACF plot of thickness of Ozone layer of ", toString(modelname))))
+  
+  par(mfrow=c(1,1))
+  
+  #Shapiro Wilk test
+  shapiro.test(y)
+}
+
+```
+
+```{r}
+# Linear Model 1 summary and plots
+
+model1 = lm(timeseries ~ time(timeseries)) # label the model as model1
+summary(model1)
+
+modelPlotting(timeseries, model1, "The Linear model")
+
+```
+
+```{r}
+# Quadratic Model 1 summary and plots
+
+t = time(timeseries)
+t2 = t^2
+model2 = lm(timeseries~t+t2) # label the model as model1
+summary(model2)
+
+modelPlotting(timeseries, model2, "The Quadratic model")
+
+```
+```{r}
+# Seasonal Model 1 summary and plots
+
+timeseries1 <- ts(dataset$V1, start = 1927, frequency = 10)
+
+year.=season(timeseries1) # period added to improve table display and this line sets up indicators
+model3 = lm(timeseries1~ year.-1) # -1 removes the intercept term
+summary(model3)
+
+modelPlotting(timeseries, model3, "The Seasonal model")
+
+```
+
+
+```{r}
+# Harmonic Model 4 summary and plots
+
+har.=harmonic(timeseries, 0.4) # calculate cos(2*pi*t) and sin(2*pi*t)
+model4.har = lm(timeseries ~ har.-1)
+summary(model4.har)
+
+modelPlotting(timeseries, model4.har, "The Harmonic model")
+
+```
+```{r}
+
+
+h = 5 # 5 steps ahed forecasts
+# Now we will implement the two-step algorithm
+
+t.start = time(timeseries)[1]
+t.end = time(timeseries)[length(timeseries)]
+
+t = seq((t.end+1), (t.end+h), 1)
+t2 = t^2
+
+modelT = model2 # label the model as model1
+
+new = data.frame(t,t2)
+
+forecasts = predict(modelT, new, interval = "prediction")
+print(forecasts)
+
+
+mergedForcastsSeries <- c(timeseries, forecasts[,1])
+
+plot(timeseries,
+     ylim = c(min(c(as.vector(mergedForcastsSeries)-5)), max(c(as.vector(mergedForcastsSeries)+5))),
+     xlim = c(t.start, t.end+5),
+     ylab = "Dobson units", 
+     xlab='Years',
+     type = 'o',
+     main = "Thickness of Ozone layer 1927 to 2016")
+# We need to convert forecasts to time series object starting from the first 
+# time steps-ahead to be able to use plot function. 
+# We do this for all columns of forecasts
+lines(ts(as.vector(forecasts[,1]), start = 2017), col="red", type="l")
+lines(ts(as.vector(forecasts[,2]), start = 2017), col="blue", type="l")
+lines(ts(as.vector(forecasts[,3]), start = 2017), col="blue", type="l")
+legend("topleft", lty=1, pch=1, col=c("black","blue","red"), text.width = 22,c("Data","5% forecast limits", "Forecasts"))
+ 
+
+```
+
+# Task 2
+
+
+```{r}
+
+acf(timeseries , main = "ACF plot of thickness of Ozone layer")
+pacf(timeseries , main = "PACF plot of thickness of Ozone layer")
+
+```
+
+
+```{r}
+
+positiveData <- timeseries + abs(min(timeseries)) +1
+plot(positiveData,
+     ylab = "Dobson units", 
+     xlab='Years',
+     type = 'o',
+     main = "Thickness of Ozone layer 1927 to 2016")
+
+OzoneLog <- log(positiveData)
+plot(OzoneLog,
+     ylab = "Dobson units", 
+     xlab='Years',
+     type = 'o',
+     main = "Thickness of Ozone layer 1927 to 2016")
+
+OzoneLogDiff <- diff(log(positiveData), differences = 1)
+plot(OzoneLogDiff,
+     ylab = "Dobson units", 
+     xlab='Years',
+     type = 'o',
+     main = "Thickness of Ozone layer 1927 to 2016")
+
+acf(OzoneLogDiff , main = "ACF plot of thickness of Ozone layer")
+pacf(OzoneLogDiff , main = "PACF plot of thickness of Ozone layer")
+
+```
+```{r}
+eacf(diff(log(abc)))
+```
+
+```{r}
+eacf(diff(log(abc), differences = 1))
+```
+
+
+```{r}
+
+BICModel = armasubsets(y=diff(log(abc), differences = 1), nar=6, nma=6, y.name='test', ar.method='ols')
+plot(BICModel)
+
+```
